@@ -81,6 +81,7 @@ export interface TeamStanding {
   points: number;
   yellowCards: number;
   redCards: number;
+  disciplinaryPoints: number; // yellowCards + (redCards * 2)
 }
 
 export interface KnockoutMatch {

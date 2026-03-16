@@ -48,6 +48,7 @@ const teamStandingArb: fc.Arbitrary<TeamStanding> = fc.record({
   points: fc.integer({ min: 0, max: 60 }),
   yellowCards: fc.integer({ min: 0, max: 20 }),
   redCards: fc.integer({ min: 0, max: 10 }),
+  disciplinaryPoints: fc.integer({ min: 0, max: 40 }), // yellowCards + (redCards * 2)
 });
 
 describe('Property 20: Report Data Completeness', () => {
@@ -99,7 +100,7 @@ describe('Property 20: Report Data Completeness', () => {
 
   /**
    * Standings report: each team standing must have team, played, won, drawn, lost,
-   * goalsFor, goalsAgainst, goalDifference, points fields.
+   * goalsFor, goalsAgainst, goalDifference, points, disciplinaryPoints fields.
    * **Validates: Requirements 13.4**
    */
   test('standings report entries contain all required fields', () => {
@@ -115,6 +116,7 @@ describe('Property 20: Report Data Completeness', () => {
           if (!('goalsAgainst' in standing)) return false;
           if (!('goalDifference' in standing)) return false;
           if (!('points' in standing)) return false;
+          if (!('disciplinaryPoints' in standing)) return false;
 
           if (typeof standing.team !== 'object' || standing.team === null) return false;
           if (typeof standing.played !== 'number') return false;
@@ -125,6 +127,7 @@ describe('Property 20: Report Data Completeness', () => {
           if (typeof standing.goalsAgainst !== 'number') return false;
           if (typeof standing.goalDifference !== 'number') return false;
           if (typeof standing.points !== 'number') return false;
+          if (typeof standing.disciplinaryPoints !== 'number') return false;
         }
         return true;
       }),

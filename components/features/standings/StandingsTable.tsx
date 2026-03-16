@@ -22,7 +22,7 @@ function sortTeams(teams: TeamStanding[]): TeamStanding[] {
   return [...teams].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-    return b.goalsFor - a.goalsFor;
+    return a.disciplinaryPoints - b.disciplinaryPoints; // Lower disciplinary points = better
   });
 }
 
@@ -60,12 +60,15 @@ export function StandingsTable({ group, teams, sortBy }: StandingsTableProps) {
               <TableHead className="text-center w-10">
                 <span className="text-red-500">RC</span>
               </TableHead>
+              <TableHead className="text-center w-12">
+                <span className="text-orange-600 text-xs font-bold">DP</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sorted.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={12} className="text-center text-muted-foreground py-6 text-sm">
+                <TableCell colSpan={13} className="text-center text-muted-foreground py-6 text-sm">
                   Belum ada data tim
                 </TableCell>
               </TableRow>
@@ -119,6 +122,11 @@ export function StandingsTable({ group, teams, sortBy }: StandingsTableProps) {
                     <TableCell className="text-center text-sm">
                       <span className={standing.redCards > 0 ? 'text-red-600 font-medium' : 'text-muted-foreground'}>
                         {standing.redCards}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center text-sm">
+                      <span className={standing.disciplinaryPoints > 0 ? 'text-orange-600 font-bold' : 'text-muted-foreground'}>
+                        {standing.disciplinaryPoints}
                       </span>
                     </TableCell>
                   </TableRow>

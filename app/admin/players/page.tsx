@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Target, Square, Search } from "lucide-react";
+import { Target, Square, Search, ArrowUpDown } from "lucide-react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useTournament } from "@/contexts/TournamentContext";
 import { mockPlayers } from "@/data/mock-players";
+import { Player } from "@/data/types";
 import {
   Table,
   TableBody,
@@ -22,24 +23,114 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
+import { Button } from "@/components/ui/button";
 
 const ITEMS_PER_PAGE = 10;
 
+type SortField = 'goals' | 'yellowCards' | 'redCards' | 'name';
+type SortDirection = 'asc' | 'desc';
+
+interface PlayerWithStats extends Player {
+  actualGoals: number;
+  actualYellowCards: number;
+  actualRedCards: number;
+}
+
 export default function PlayersPage() {
-  const { teams } = useTournament();
+  const { teams, matches } = useTournament();
   const [selectedTeamId, setSelectedTeamId] = useState<string>("all");
   const [teamSearch, setTeamSearch] = useState<string>("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState<SortField>('goals');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  // Calculate actual player stats from match events
+  const playersWithStats = useMemo((): PlayerWithStats[] => {
+    return mockPlayers.map(player => {
+      // Get all completed matches
+      const completedMatches = matches.filter(m => m.status === 'completed');
+      
+      // Calculate stats from match events
+      let actualGoals = 0;
+      let actualYellowCards = 0;
+      let actualRedCards = 0;
+
+      completedMatches.forEach(match => {
+        match.events.forEach(event => {
+          if (event.playerId === player.id) {
+            switch (event.type) {
+              case 'goal':
+                actualGoals++;
+                break;
+              case 'yellowCard':
+                actualYellowCards++;
+                break;
+              case 'redCard':
+                actualRedCards++;
+                break;
+            }
+          }
+        });
+      });
+
+      return {
+        ...player,
+        actualGoals,
+        actualYellowCards,
+        actualRedCards,
+      };
+    });
+  }, [matches]);
 
   const filteredPlayers = useMemo(() => {
-    if (selectedTeamId === "all") return mockPlayers;
-    return mockPlayers.filter((p) => p.teamId === selectedTeamId);
-  }, [selectedTeamId]);
+    if (selectedTeamId === "all") return playersWithStats;
+    return playersWithStats.filter((p) => p.teamId === selectedTeamId);
+  }, [selectedTeamId, playersWithStats]);
 
-  const totalPages = Math.ceil(filteredPlayers.length / ITEMS_PER_PAGE);
+  // Sort players
+  const sortedPlayers = useMemo(() => {
+    return [...filteredPlayers].sort((a, b) => {
+      let aValue: number | string;
+      let bValue: number | string;
+
+      switch (sortField) {
+        case 'goals':
+          aValue = a.actualGoals;
+          bValue = b.actualGoals;
+          break;
+        case 'yellowCards':
+          aValue = a.actualYellowCards;
+          bValue = b.actualYellowCards;
+          break;
+        case 'redCards':
+          aValue = a.actualRedCards;
+          bValue = b.actualRedCards;
+          break;
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return sortDirection === 'asc' 
+          ? aValue.localeCompare(bValue)
+          : bValue.localeCompare(aValue);
+      }
+
+      const numA = aValue as number;
+      const numB = bValue as number;
+      
+      return sortDirection === 'asc' ? numA - numB : numB - numA;
+    });
+  }, [filteredPlayers, sortField, sortDirection]);
+
+  const totalPages = Math.ceil(sortedPlayers.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedPlayers = filteredPlayers.slice(startIndex, endIndex);
+  const paginatedPlayers = sortedPlayers.slice(startIndex, endIndex);
 
   const filteredTeams = useMemo(() => {
     if (!teamSearch) return teams;
@@ -59,6 +150,25 @@ export default function PlayersPage() {
   const handleTeamChange = (teamId: string) => {
     setSelectedTeamId(teamId);
     setCurrentPage(1);
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc'); // Default to desc for stats, asc for name
+    }
+    setCurrentPage(1);
+  };
+
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="h-4 w-4 opacity-50" />;
+    return (
+      <ArrowUpDown 
+        className={`h-4 w-4 ${sortDirection === 'desc' ? 'rotate-180' : ''} transition-transform`} 
+      />
+    );
   };
 
   return (
@@ -86,49 +196,104 @@ export default function PlayersPage() {
               </div>
               <div>
                 <p className="text-[10px] md:text-xs text-gray-400 font-bold uppercase tracking-widest">Total Players</p>
-                <p className="text-xl md:text-2xl font-black text-white">{mockPlayers.length} Pemain</p>
+                <p className="text-xl md:text-2xl font-black text-white">{playersWithStats.length} Pemain</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[#1F7A63]/10 rounded-lg">
+                <Target className="h-5 w-5 text-[#1F7A63]" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Total Goals</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {sortedPlayers.reduce((sum, p) => sum + p.actualGoals, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Square className="h-5 w-5 fill-yellow-500 text-yellow-500" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Yellow Cards</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {sortedPlayers.reduce((sum, p) => sum + p.actualYellowCards, 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-4 rounded-xl border-2 border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <Square className="h-5 w-5 fill-red-500 text-red-500" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">Red Cards</p>
+                <p className="text-xl font-bold text-gray-900">
+                  {sortedPlayers.reduce((sum, p) => sum + p.actualRedCards, 0)}
+                </p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Filter */}
-        <div className="flex items-center gap-3 bg-white p-4 rounded-xl border-2 border-gray-300 shadow-sm">
-          <span className="text-sm font-medium text-gray-600">Filter by Team:</span>
-          <Select value={selectedTeamId} onValueChange={handleTeamChange}>
-            <SelectTrigger className="w-56 text-gray-900">
-              <SelectValue placeholder="All Teams" />
-            </SelectTrigger>
-            <SelectContent className="bg-white text-gray-900">
-              {/* Search input */}
-              <div className="flex items-center border-b px-3 pb-2">
-                <Search className="h-4 w-4 text-gray-400 mr-2" />
-                <Input
-                  placeholder="Cari tim..."
-                  value={teamSearch}
-                  onChange={(e) => setTeamSearch(e.target.value)}
-                  className="h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
-                />
-              </div>
-              {/* Scrollable list with max 5 visible */}
-              <div className="max-h-[200px] overflow-y-auto">
-                <SelectItem value="all" className="text-gray-900">All Teams</SelectItem>
-                {filteredTeams.map((team) => (
-                  <SelectItem key={team.id} value={team.id} className="text-gray-900">
-                    {team.schoolName}
-                  </SelectItem>
-                ))}
-                {filteredTeams.length === 0 && (
-                  <div className="py-6 text-center text-sm text-gray-400">
-                    Tidak ada tim ditemukan
-                  </div>
-                )}
-              </div>
-            </SelectContent>
-          </Select>
-          <span className="text-sm text-gray-400">
-            {filteredPlayers.length} player{filteredPlayers.length !== 1 ? "s" : ""}
-          </span>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-white p-4 rounded-xl border-2 border-gray-300 shadow-sm">
+          <div className="flex items-center gap-3 flex-1">
+            <span className="text-sm font-medium text-gray-600">Filter by Team:</span>
+            <Select value={selectedTeamId} onValueChange={handleTeamChange}>
+              <SelectTrigger className="w-56 text-gray-900">
+                <SelectValue placeholder="All Teams" />
+              </SelectTrigger>
+              <SelectContent className="bg-white text-gray-900">
+                {/* Search input */}
+                <div className="flex items-center border-b px-3 pb-2">
+                  <Search className="h-4 w-4 text-gray-400 mr-2" />
+                  <Input
+                    placeholder="Cari tim..."
+                    value={teamSearch}
+                    onChange={(e) => setTeamSearch(e.target.value)}
+                    className="h-8 border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
+                  />
+                </div>
+                {/* Scrollable list with max 5 visible */}
+                <div className="max-h-[200px] overflow-y-auto">
+                  <SelectItem value="all" className="text-gray-900">All Teams</SelectItem>
+                  {filteredTeams.map((team) => (
+                    <SelectItem key={team.id} value={team.id} className="text-gray-900">
+                      {team.schoolName}
+                    </SelectItem>
+                  ))}
+                  {filteredTeams.length === 0 && (
+                    <div className="py-6 text-center text-sm text-gray-400">
+                      Tidak ada tim ditemukan
+                    </div>
+                  )}
+                </div>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-gray-400">
+              {sortedPlayers.length} player{sortedPlayers.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          
+          {/* Sync Status Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#1F7A63]/10 border border-[#1F7A63]/20 rounded-lg">
+            <div className="h-2 w-2 bg-[#1F7A63] rounded-full animate-pulse"></div>
+            <span className="text-xs font-medium text-[#1F7A63]">
+              Stats synced with match results
+            </span>
+          </div>
         </div>
 
         {/* Table */}
@@ -136,26 +301,46 @@ export default function PlayersPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Player Name</TableHead>
+              <TableHead>
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort('name')}
+                  className="h-auto p-0 font-semibold hover:bg-transparent"
+                >
+                  Player Name {getSortIcon('name')}
+                </Button>
+              </TableHead>
               <TableHead className="w-28 text-center">Jersey #</TableHead>
               <TableHead>Team</TableHead>
               <TableHead className="w-24 text-center">
-                <div className="flex items-center justify-center gap-1">
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort('goals')}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center justify-center gap-1"
+                >
                   <Target className="h-4 w-4 text-[#1F7A63]" />
-                  Goals
-                </div>
+                  Goals {getSortIcon('goals')}
+                </Button>
               </TableHead>
               <TableHead className="w-32 text-center">
-                <div className="flex items-center justify-center gap-1">
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort('yellowCards')}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center justify-center gap-1"
+                >
                   <Square className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  Yellow
-                </div>
+                  Yellow {getSortIcon('yellowCards')}
+                </Button>
               </TableHead>
               <TableHead className="w-28 text-center">
-                <div className="flex items-center justify-center gap-1">
+                <Button
+                  variant="ghost"
+                  onClick={() => handleSort('redCards')}
+                  className="h-auto p-0 font-semibold hover:bg-transparent flex items-center justify-center gap-1"
+                >
                   <Square className="h-4 w-4 fill-red-500 text-red-500" />
-                  Red
-                </div>
+                  Red {getSortIcon('redCards')}
+                </Button>
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -183,17 +368,17 @@ export default function PlayersPage() {
                 </TableCell>
                 <TableCell className="text-center">
                   <span className="font-semibold text-[#1F7A63]">
-                    {player.goals}
+                    {player.actualGoals}
                   </span>
                 </TableCell>
                 <TableCell className="text-center">
                   <span className="font-semibold text-yellow-500">
-                    {player.yellowCards}
+                    {player.actualYellowCards}
                   </span>
                 </TableCell>
                 <TableCell className="text-center">
                   <span className="font-semibold text-red-500">
-                    {player.redCards}
+                    {player.actualRedCards}
                   </span>
                 </TableCell>
               </TableRow>

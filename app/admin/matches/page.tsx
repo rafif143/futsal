@@ -11,6 +11,8 @@ import {
   Dialog,
   DialogContent,
   DialogFooter,
+  DialogTitle,
+  VisuallyHidden,
 } from "@/components/ui/dialog";
 import { Match, Player, MatchEvent } from "@/data/types";
 import { mockPlayers } from "@/data/mock-players";
@@ -315,6 +317,11 @@ export default function MatchesPageContent() {
           ========================================================= */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
         <DialogContent className="bg-white max-w-5xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl border-none">
+          <VisuallyHidden>
+            <DialogTitle>
+              Edit Match: {team1?.schoolName} vs {team2?.schoolName}
+            </DialogTitle>
+          </VisuallyHidden>
           
           {/* Header Modal - VS Display */}
           <div className="bg-slate-900 p-6 flex flex-col gap-4 shrink-0 relative overflow-hidden">

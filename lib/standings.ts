@@ -4,7 +4,10 @@ import { Team, Player, Match, TeamStanding } from '@/data/types';
  * Calculates group standings for a given group.
  *
  * Points: (wins × 3) + (draws × 1)
- * Sort: points desc → goal difference desc → goals for desc
+ * Sort: points desc → goal difference desc → disciplinary points asc (fewer cards = better)
+ *
+ * Disciplinary points: yellowCards + (redCards × 2)
+ * Note: 2 yellow cards = 1 red card in terms of disciplinary points
  *
  * Validates: Requirements 10.3, 10.4
  */
@@ -71,14 +74,15 @@ export function calculateGroupStandings(
       points: won * 3 + drawn,
       yellowCards,
       redCards,
+      disciplinaryPoints: yellowCards + (redCards * 2), // 2 yellow = 1 red
     };
   });
 
-  // Sort: points desc → goal difference desc → goals for desc
+  // Sort: points desc → goal difference desc → disciplinary points asc (fewer cards = better)
   return standings.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-    return b.goalsFor - a.goalsFor;
+    return a.disciplinaryPoints - b.disciplinaryPoints; // Lower disciplinary points = better
   });
 }
 
@@ -89,7 +93,7 @@ export function calculateGroupStandings(
  * Ranking criteria:
  * 1. Points (descending)
  * 2. Goal difference (descending)
- * 3. Goals scored (descending)
+ * 3. Disciplinary points (ascending - fewer cards = better)
  */
 export function getTop5RunnerUps(
   allGroupStandings: TeamStanding[][]
@@ -103,7 +107,7 @@ export function getTop5RunnerUps(
   const sortedRunnerUps = runnerUps.sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-    return b.goalsFor - a.goalsFor;
+    return a.disciplinaryPoints - b.disciplinaryPoints; // Lower disciplinary points = better
   });
 
   // Return top 5 teams
