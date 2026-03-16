@@ -9,6 +9,7 @@ import {
   matchStorage,
   drawingStorage 
 } from '@/lib/storage';
+import { generateEmptyGroupMatches } from '@/lib/match-utils';
 import { mockTeams } from '@/data/mock-teams';
 import { mockRegistrations } from '@/data/mock-registrations';
 import { mockGroups } from '@/data/mock-groups';
@@ -39,6 +40,8 @@ interface TournamentContextType {
   setMatches: (matches: Match[]) => void;
   updateMatch: (matchId: string, updates: Partial<Match>) => void;
   clearMatches: () => void;
+  generateEmptyMatches: () => void;
+  assignTeamsToMatch: (matchId: string, team1Id: string, team2Id: string, group?: string) => void;
   
   // Drawing
   isDrawingConfirmed: boolean;
@@ -167,6 +170,19 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
     matchStorage.clear();
   };
 
+  const generateEmptyMatches = () => {
+    const emptyMatches = generateEmptyGroupMatches(5, 6); // 5 days, 6 matches per day
+    setMatches(emptyMatches);
+  };
+
+  const assignTeamsToMatch = (matchId: string, team1Id: string, team2Id: string, group?: string) => {
+    updateMatch(matchId, {
+      team1Id,
+      team2Id,
+      group,
+    });
+  };
+
   // Drawing functions
   const setDrawingConfirmed = (confirmed: boolean) => {
     setIsDrawingConfirmedState(confirmed);
@@ -220,6 +236,8 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
         setMatches,
         updateMatch,
         clearMatches,
+        generateEmptyMatches,
+        assignTeamsToMatch,
         isDrawingConfirmed,
         setDrawingConfirmed,
         resetAllData,

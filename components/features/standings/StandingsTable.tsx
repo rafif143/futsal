@@ -20,9 +20,20 @@ interface StandingsTableProps {
 
 function sortTeams(teams: TeamStanding[]): TeamStanding[] {
   return [...teams].sort((a, b) => {
+    // 1. Points (descending)
     if (b.points !== a.points) return b.points - a.points;
+    
+    // 2. Head-to-head would be calculated in the main standings function
+    // For display purposes, we'll use the order from calculateGroupStandings
+    
+    // 3. Goal difference (descending)
     if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
-    return a.disciplinaryPoints - b.disciplinaryPoints; // Lower disciplinary points = better
+    
+    // 4. Goals for (descending)
+    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
+    
+    // 5. Fair play - disciplinary points (ascending - fewer cards = better)
+    return a.disciplinaryPoints - b.disciplinaryPoints;
   });
 }
 
@@ -68,7 +79,7 @@ export function StandingsTable({ group, teams, sortBy }: StandingsTableProps) {
           <TableBody>
             {sorted.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={13} className="text-center text-muted-foreground py-6 text-sm">
+                <TableCell colSpan={13} className="text-center text-gray-500 py-6 text-sm">
                   Belum ada data tim
                 </TableCell>
               </TableRow>
@@ -88,13 +99,13 @@ export function StandingsTable({ group, teams, sortBy }: StandingsTableProps) {
                           {rank}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground">{rank}</span>
+                        <span className="text-gray-500">{rank}</span>
                       )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {/* Team logo / initial */}
-                        <div className="h-7 w-7 flex-shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-primary border border-border overflow-hidden">
+                        <div className="h-7 w-7 flex-shrink-0 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-[#1F7A63] border border-gray-200 overflow-hidden">
                           {standing.team.schoolName.charAt(0).toUpperCase()}
                         </div>
                         <span className="text-sm font-medium text-gray-900">
@@ -115,17 +126,17 @@ export function StandingsTable({ group, teams, sortBy }: StandingsTableProps) {
                     </TableCell>
                     <TableCell className="text-center text-sm font-bold text-gray-900">{standing.points}</TableCell>
                     <TableCell className="text-center text-sm">
-                      <span className={standing.yellowCards > 0 ? 'text-yellow-600 font-medium' : 'text-muted-foreground'}>
+                      <span className={standing.yellowCards > 0 ? 'text-yellow-600 font-medium' : 'text-gray-400'}>
                         {standing.yellowCards}
                       </span>
                     </TableCell>
                     <TableCell className="text-center text-sm">
-                      <span className={standing.redCards > 0 ? 'text-red-600 font-medium' : 'text-muted-foreground'}>
+                      <span className={standing.redCards > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
                         {standing.redCards}
                       </span>
                     </TableCell>
                     <TableCell className="text-center text-sm">
-                      <span className={standing.disciplinaryPoints > 0 ? 'text-orange-600 font-bold' : 'text-muted-foreground'}>
+                      <span className={standing.disciplinaryPoints > 0 ? 'text-orange-600 font-bold' : 'text-gray-400'}>
                         {standing.disciplinaryPoints}
                       </span>
                     </TableCell>

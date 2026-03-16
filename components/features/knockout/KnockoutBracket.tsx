@@ -33,20 +33,20 @@ function TeamRow({
       }`}
     >
       <div className="flex items-center gap-2 min-w-0">
-        <div className="h-6 w-6 flex-shrink-0 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-primary border border-border overflow-hidden">
+        <div className="h-6 w-6 flex-shrink-0 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-[#1F7A63] border border-gray-200 overflow-hidden">
           {team ? team.schoolName.charAt(0).toUpperCase() : '?'}
         </div>
         <span
           className={`text-xs truncate max-w-[90px] ${
-            isWinner ? 'font-semibold text-[#1F7A63]' : 'text-foreground'
-          } ${!team ? 'text-muted-foreground italic' : ''}`}
+            isWinner ? 'font-semibold text-[#1F7A63]' : 'text-gray-900'
+          } ${!team ? 'text-gray-500 italic' : ''}`}
         >
           {team ? team.schoolName : 'TBD'}
         </span>
       </div>
       <span
         className={`text-xs font-bold flex-shrink-0 w-5 text-center ${
-          isWinner ? 'text-[#1F7A63]' : 'text-muted-foreground'
+          isWinner ? 'text-[#1F7A63]' : 'text-gray-500'
         }`}
       >
         {score !== undefined ? score : score === 0 ? '0' : '-'}
@@ -63,7 +63,7 @@ function MatchSlot({ match, onClick }: MatchSlotProps) {
       onClick={onClick}
       className={`w-44 border shadow-sm transition-shadow ${
         onClick ? 'cursor-pointer hover:shadow-md' : ''
-      } ${hasResult ? 'border-[#1F7A63]/30' : 'border-border'}`}
+      } ${hasResult ? 'border-[#1F7A63]/30' : 'border-gray-200'}`}
     >
       <div className="p-1 space-y-0.5">
         <TeamRow
@@ -71,7 +71,7 @@ function MatchSlot({ match, onClick }: MatchSlotProps) {
           score={match.score1}
           isWinner={!!match.winner && match.winner.id === match.team1?.id}
         />
-        <div className="border-t border-dashed border-border/60 mx-2" />
+        <div className="border-t border-dashed border-gray-300 mx-2" />
         <TeamRow
           team={match.team2}
           score={match.score2}
@@ -113,8 +113,8 @@ function RoundColumn({ label, matches, onMatchClick, icon }: RoundColumnProps) {
       {/* Matches */}
       <div className="flex flex-col gap-4 justify-around flex-1">
         {matches.length === 0 ? (
-          <div className="w-44 h-16 rounded-lg border border-dashed border-border flex items-center justify-center">
-            <span className="text-xs text-muted-foreground">Belum ada pertandingan</span>
+          <div className="w-44 h-16 rounded-lg border border-dashed border-gray-300 flex items-center justify-center">
+            <span className="text-xs text-gray-500">Belum ada pertandingan</span>
           </div>
         ) : (
           matches.map((match) => (

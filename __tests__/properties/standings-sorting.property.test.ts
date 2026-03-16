@@ -14,14 +14,17 @@ interface TeamStanding {
   team: { id: string; name: string };
   points: number;
   goalDifference: number;
+  goalsFor: number;
   disciplinaryPoints: number; // yellowCards + (redCards * 2)
 }
 
 /**
- * Pure function that sorts standings by:
+ * Pure function that sorts standings by FIFA standard criteria:
  * 1. Points (descending)
- * 2. Goal difference (descending)
- * 3. Disciplinary points (ascending - fewer cards = better)
+ * 2. Head-to-head (not applicable in this simplified test)
+ * 3. Goal difference (descending)
+ * 4. Goals for (descending) 
+ * 5. Disciplinary points (ascending - fewer cards = better)
  *
  * Validates: Requirements 10.4
  */
@@ -29,6 +32,7 @@ function sortStandings(standings: TeamStanding[]): TeamStanding[] {
   return [...standings].sort((a, b) => {
     if (b.points !== a.points) return b.points - a.points;
     if (b.goalDifference !== a.goalDifference) return b.goalDifference - a.goalDifference;
+    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor;
     return a.disciplinaryPoints - b.disciplinaryPoints; // Lower disciplinary points = better
   });
 }
@@ -43,6 +47,7 @@ const teamStandingArbitrary = fc.record({
   }),
   points: fc.integer({ min: 0, max: 9 }),
   goalDifference: fc.integer({ min: -10, max: 10 }),
+  goalsFor: fc.integer({ min: 0, max: 15 }),
   disciplinaryPoints: fc.integer({ min: 0, max: 20 }), // 0-20 disciplinary points
 });
 
@@ -59,8 +64,12 @@ const standingsArrayArbitrary = fc.array(teamStandingArbitrary, {
  *
  * **Validates: Requirements 10.4**
  *
- * For any group standings, teams should be sorted first by points (descending),
- * then by goal difference (descending), then by disciplinary points (ascending - fewer cards = better).
+ * For any group standings, teams should be sorted by FIFA standard criteria:
+ * 1. Points (descending)
+ * 2. Head-to-head (not tested in this simplified version)
+ * 3. Goal difference (descending)
+ * 4. Goals for (descending)
+ * 5. Disciplinary points (ascending - fewer cards = better)
  */
 describe('Property 17: Standings Sorting Order', () => {
   test('sorted standings should be ordered by points descending', () => {
@@ -91,7 +100,7 @@ describe('Property 17: Standings Sorting Order', () => {
     );
   });
 
-  test('when points and goal difference are equal, sorted standings should be ordered by disciplinary points ascending', () => {
+  test('when points and goal difference are equal, sorted standings should be ordered by goals for descending', () => {
     fc.assert(
       fc.property(standingsArrayArbitrary, (standings) => {
         const sorted = sortStandings(standings);
@@ -99,6 +108,25 @@ describe('Property 17: Standings Sorting Order', () => {
           if (
             sorted[i].points === sorted[i + 1].points &&
             sorted[i].goalDifference === sorted[i + 1].goalDifference
+          ) {
+            if (sorted[i].goalsFor < sorted[i + 1].goalsFor) return false;
+          }
+        }
+        return true;
+      }),
+      { numRuns: 100 }
+    );
+  });
+
+  test('when points, goal difference, and goals for are equal, sorted standings should be ordered by disciplinary points ascending', () => {
+    fc.assert(
+      fc.property(standingsArrayArbitrary, (standings) => {
+        const sorted = sortStandings(standings);
+        for (let i = 0; i < sorted.length - 1; i++) {
+          if (
+            sorted[i].points === sorted[i + 1].points &&
+            sorted[i].goalDifference === sorted[i + 1].goalDifference &&
+            sorted[i].goalsFor === sorted[i + 1].goalsFor
           ) {
             if (sorted[i].disciplinaryPoints > sorted[i + 1].disciplinaryPoints) return false;
           }

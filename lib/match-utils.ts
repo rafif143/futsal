@@ -1,4 +1,67 @@
-import { Match, MatchResult, Player } from '@/data/types';
+import { Match, MatchResult, Player, Team, GroupAssignment } from '@/data/types';
+
+/**
+ * Generates empty match slots for group stage.
+ * Creates placeholder matches that can be filled with team matchups later.
+ */
+export function generateEmptyGroupMatches(totalDays: number = 5, matchesPerDay: number = 6): Match[] {
+  const matches: Match[] = [];
+  
+  for (let day = 1; day <= totalDays; day++) {
+    for (let matchNum = 1; matchNum <= matchesPerDay; matchNum++) {
+      const matchId = `D${day}M${matchNum}`;
+      matches.push({
+        id: matchId,
+        stage: 'group',
+        team1Id: '', // Empty - to be filled later
+        team2Id: '', // Empty - to be filled later
+        status: 'pending',
+        events: [],
+        // Optional scheduling fields
+        date: undefined,
+        time: undefined,
+        venue: undefined,
+      });
+    }
+  }
+  
+  return matches;
+}
+
+/**
+ * Assigns team matchup to an empty match slot.
+ * Updates the match with team1Id and team2Id, and optionally group.
+ */
+export function assignMatchup(
+  matchId: string, 
+  team1Id: string, 
+  team2Id: string, 
+  group?: string
+): Partial<Match> {
+  return {
+    team1Id,
+    team2Id,
+    group,
+  };
+}
+
+/**
+ * Gets available teams for a specific group that can be matched.
+ * Returns teams that are in the specified group.
+ */
+export function getAvailableTeamsForGroup(
+  group: string, 
+  teams: Team[], 
+  groupAssignments: GroupAssignment[]
+): Team[] {
+  const groupAssignment = groupAssignments.find(g => g.group === group);
+  if (groupAssignment) {
+    return groupAssignment.teams;
+  }
+  
+  // Fallback: filter teams by group property
+  return teams.filter(team => team.group === group);
+}
 
 /**
  * Applies a match result to the matches array.

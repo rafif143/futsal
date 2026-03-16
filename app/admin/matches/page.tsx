@@ -3,10 +3,11 @@
 import { useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useTournament } from "@/contexts/TournamentContext";
-import { Calendar, Edit2, Save, X, CheckCircle2, Activity } from "lucide-react";
+import { Calendar, Edit2, Save, X, CheckCircle2, Activity, Clock, MapPin, GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -26,10 +27,20 @@ interface PlayerStats {
   redCards: number;
 }
 
+interface PotentialMatchup {
+  id: string;
+  team1Id: string;
+  team2Id: string;
+  group: string;
+  isUsed: boolean;
+}
+
 export default function MatchesPageContent() {
-  const { matches, teams, updateMatch } = useTournament();
+  const { matches, teams, updateMatch, generateEmptyMatches, assignTeamsToMatch, groups, setMatches } = useTournament();
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [draggedMatchup, setDraggedMatchup] = useState<PotentialMatchup | null>(null);
   
   // Player stats for the selected match
   const [team1Stats, setTeam1Stats] = useState<PlayerStats[]>([]);
@@ -38,6 +49,37 @@ export default function MatchesPageContent() {
   const teamMap = useMemo(() => {
     return new Map(teams.map((t) => [t.id, t]));
   }, [teams]);
+
+  // Generate potential matchups from group assignments
+  const potentialMatchups = useMemo((): PotentialMatchup[] => {
+    const matchups: PotentialMatchup[] = [];
+    
+    groups.forEach(group => {
+      const groupTeams = group.teams;
+      // Generate all possible combinations within the group
+      for (let i = 0; i < groupTeams.length; i++) {
+        for (let j = i + 1; j < groupTeams.length; j++) {
+          const matchupId = `${group.group}-${groupTeams[i].id}-vs-${groupTeams[j].id}`;
+          
+          // Check if this matchup is already used in matches
+          const isUsed = matches.some(match => 
+            (match.team1Id === groupTeams[i].id && match.team2Id === groupTeams[j].id) ||
+            (match.team1Id === groupTeams[j].id && match.team2Id === groupTeams[i].id)
+          );
+          
+          matchups.push({
+            id: matchupId,
+            team1Id: groupTeams[i].id,
+            team2Id: groupTeams[j].id,
+            group: group.group,
+            isUsed
+          });
+        }
+      }
+    });
+    
+    return matchups;
+  }, [groups, teams, matches]);
 
   // Get all group matches
   const groupMatches = useMemo(() => {
@@ -82,6 +124,68 @@ export default function MatchesPageContent() {
     setTeam1Stats(initTeam1Stats);
     setTeam2Stats(initTeam2Stats);
     setShowEditModal(true);
+  };
+
+  const handleDragStart = (matchup: PotentialMatchup) => {
+    setDraggedMatchup(matchup);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, match: Match) => {
+    e.preventDefault();
+    if (!draggedMatchup) return;
+    
+    // Assign the dragged matchup to this match slot
+    assignTeamsToMatch(
+      match.id,
+      draggedMatchup.team1Id,
+      draggedMatchup.team2Id,
+      draggedMatchup.group
+    );
+    
+    setDraggedMatchup(null);
+  };
+
+  const handleRemoveMatchup = (match: Match) => {
+    // Clear the match assignment
+    updateMatch(match.id, {
+      team1Id: '',
+      team2Id: '',
+      group: undefined,
+    });
+  };
+
+  const handleResetAllAssignments = () => {
+    setShowResetDialog(true);
+  };
+
+  const confirmResetAllAssignments = () => {
+    // Clear all match assignments by updating all matches at once
+    const updatedMatches = matches.map(match => {
+      if (match.stage === 'group' && (match.team1Id || match.team2Id)) {
+        return {
+          ...match,
+          team1Id: '',
+          team2Id: '',
+          group: undefined,
+          team1Score: undefined,
+          team2Score: undefined,
+          status: 'pending' as const,
+          events: [],
+        };
+      }
+      return match;
+    });
+    
+    setMatches(updatedMatches);
+    setShowResetDialog(false);
+  };
+
+  const handleGenerateEmptyMatches = () => {
+    generateEmptyMatches();
   };
 
   const updatePlayerStat = (
@@ -155,25 +259,6 @@ export default function MatchesPageContent() {
     setSelectedMatch(null);
   };
 
-  if (groupMatches.length === 0) {
-    return (
-      <DashboardLayout
-        title="Jadwal & Hasil Pertandingan"
-        breadcrumb={["Admin", "Match Control"]}
-      >
-        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border-2 border-slate-200 border-dashed shadow-sm">
-          <div className="h-24 w-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100 shadow-inner">
-            <Calendar className="h-12 w-12 text-slate-400" />
-          </div>
-          <h3 className="text-2xl font-black text-slate-900 mb-2">Belum Ada Jadwal</h3>
-          <p className="text-slate-500 text-center max-w-md">
-            Jadwal pertandingan akan muncul setelah Anda menyelesaikan proses *drawing* grup dan men-generate jadwal.
-          </p>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   const currentDayMatches = matchesByDay[activeDay] || [];
   const team1 = selectedMatch ? teamMap.get(selectedMatch.team1Id) : null;
   const team2 = selectedMatch ? teamMap.get(selectedMatch.team2Id) : null;
@@ -195,7 +280,7 @@ export default function MatchesPageContent() {
             </div>
             <div>
               <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-1">Match Control Panel</h1>
-              <p className="text-slate-400 text-sm md:text-base font-medium">Input hasil skor dan detail event (gol/kartu) setiap pertandingan.</p>
+              <p className="text-slate-400 text-sm md:text-base font-medium">Kelola pertandingan grup dan knockout tournament.</p>
             </div>
           </div>
 
@@ -215,101 +300,280 @@ export default function MatchesPageContent() {
           </div>
         </div>
 
-        {/* DAY NAVIGATION (PILL TABS) */}
-        {matchesByDay.length > 1 && (
-          <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2">
-            {matchesByDay.map((_, dayIndex) => (
-              <button
-                key={dayIndex}
-                onClick={() => setActiveDay(dayIndex)}
-                className={`flex flex-col items-center justify-center px-6 py-2.5 rounded-xl transition-all whitespace-nowrap border-2 shrink-0 ${
-                  activeDay === dayIndex
-                    ? 'bg-[#1F7A63]/10 border-[#1F7A63] shadow-sm'
-                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300'
-                }`}
-              >
-                <span className={`text-xs font-bold uppercase tracking-widest ${activeDay === dayIndex ? 'text-[#1F7A63]' : 'text-slate-400'}`}>
-                  Matchday
-                </span>
-                <span className={`text-lg font-black ${activeDay === dayIndex ? 'text-slate-900' : 'text-slate-600'}`}>
-                  {dayIndex + 1}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* TABS SECTION */}
+        <Tabs defaultValue="group" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="group" className="font-semibold">
+              Group Stage
+            </TabsTrigger>
+            <TabsTrigger value="knockout" className="font-semibold">
+              Knockout Stage
+            </TabsTrigger>
+          </TabsList>
 
-        {/* MATCHES LIST (Modern Card Layout instead of Table) */}
-        <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {currentDayMatches.map((match) => {
-            const team1 = teamMap.get(match.team1Id);
-            const team2 = teamMap.get(match.team2Id);
-            const team1Name = team1?.schoolName ?? match.team1Id;
-            const team2Name = team2?.schoolName ?? match.team2Id;
-            const isCompleted = match.status === "completed";
+          {/* GROUP STAGE TAB */}
+          <TabsContent value="group" className="space-y-6">
+            {groupMatches.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border-2 border-slate-200 border-dashed shadow-sm">
+                <div className="h-24 w-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100 shadow-inner">
+                  <Calendar className="h-12 w-12 text-slate-400" />
+                </div>
+                <h3 className="text-2xl font-black text-slate-900 mb-2">Belum Ada Match</h3>
+                <p className="text-slate-500 text-center max-w-md mb-6">
+                  Generate match slots kosong terlebih dahulu untuk memulai mengatur pertandingan.
+                </p>
+                <Button
+                  onClick={handleGenerateEmptyMatches}
+                  className="bg-[#1F7A63] hover:bg-[#16624F] text-white font-bold px-6 py-3 rounded-xl"
+                >
+                  <Calendar className="h-5 w-5 mr-2" />
+                  Generate Match Slots
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* LEFT SIDE - MATCHDAYS */}
+                <div className="lg:col-span-2 space-y-4">
+                  {/* DAY NAVIGATION */}
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar pb-2 flex-1">
+                      {matchesByDay.map((_, dayIndex) => (
+                        <button
+                          key={dayIndex}
+                          onClick={() => setActiveDay(dayIndex)}
+                          className={`flex flex-col items-center justify-center px-4 py-2 rounded-lg transition-all whitespace-nowrap border-2 shrink-0 ${
+                            activeDay === dayIndex
+                              ? 'bg-[#1F7A63] border-[#1F7A63] text-white shadow-md'
+                              : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="text-xs font-bold uppercase tracking-wide">Day</span>
+                          <span className="text-lg font-black">{dayIndex + 1}</span>
+                        </button>
+                      ))}
+                    </div>
 
-            return (
-              <div 
-                key={match.id} 
-                className="bg-white rounded-2xl border border-slate-200 p-4 md:p-5 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6 shadow-sm hover:shadow-md transition-shadow group"
-              >
-                {/* Info & Badge Kiri */}
-                <div className="flex items-center justify-between w-full md:w-32 shrink-0">
-                  <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-200 font-bold border-none shadow-none">
-                    Grup {match.group}
-                  </Badge>
-                  <span className="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 md:hidden">
-                    {match.id}
-                  </span>
+                    {/* Reset Button */}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          // Force save current state to localStorage
+                          const { matchStorage } = require('@/lib/storage');
+                          matchStorage.save(matches);
+                          // Show success feedback
+                          alert('Match assignments saved successfully!');
+                        }}
+                        variant="outline"
+                        className="shrink-0 border-2 border-green-300 text-white font-bold hover:border-green-300 hover:text-black hover:bg-white"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Save All
+                      </Button>
+                      
+                      <Button
+                        onClick={handleResetAllAssignments}
+                        variant="outline"
+                        disabled={groupMatches.filter(m => m.team1Id && m.team2Id).length === 0}
+                        className="shrink-0 border-2 border-slate-300 text-white font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:border-slate-300 hover:text-black hover:bg-white"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Reset All
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* MATCH SLOTS FOR SELECTED DAY */}
+                  <div className="bg-white rounded-xl border-2 border-slate-200 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-slate-900">
+                        Matchday {activeDay + 1}
+                      </h3>
+                      <Badge variant="outline" className="text-slate-600">
+                        {currentDayMatches.filter(m => m.team1Id && m.team2Id).length} / {currentDayMatches.length} assigned
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {currentDayMatches.map((match, index) => {
+                        const team1 = teamMap.get(match.team1Id);
+                        const team2 = teamMap.get(match.team2Id);
+                        const isEmpty = !match.team1Id || !match.team2Id;
+                        const isCompleted = match.status === "completed";
+
+                        return (
+                          <div 
+                            key={match.id}
+                            className={`p-4 rounded-lg border-2 transition-all ${
+                              isEmpty 
+                                ? 'border-dashed border-slate-300 bg-slate-50/50 hover:bg-slate-100/50' 
+                                : 'border-slate-200 bg-white hover:shadow-sm'
+                            }`}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, match)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-600 font-bold text-sm">
+                                  {index + 1}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {isEmpty ? (
+                                    <div className="flex items-center gap-2 text-slate-400">
+                                      <span className="italic">Drop matchup here</span>
+                                      <span className="text-xs">•</span>
+                                      <span className="text-xs">{match.id}</span>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span className="font-semibold text-slate-900">
+                                        {team1?.schoolName}
+                                      </span>
+                                      <span className="text-slate-400 font-bold">vs</span>
+                                      <span className="font-semibold text-slate-900">
+                                        {team2?.schoolName}
+                                      </span>
+                                      {match.group && (
+                                        <Badge variant="secondary" className="ml-2 text-xs bg-slate-100 text-slate-700 border-slate-300">
+                                          Grup {match.group}
+                                        </Badge>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {isCompleted && !isEmpty && (
+                                  <div className="text-sm font-bold text-[#1F7A63]">
+                                    {match.team1Score} - {match.team2Score}
+                                  </div>
+                                )}
+                                {!isEmpty && (
+                                  <div className="flex gap-1">
+                                    <Button
+                                      onClick={() => handleRemoveMatchup(match)}
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-xs text-white font-bold hover:text-black hover:bg-transparent"
+                                    >
+                                      Remove
+                                    </Button>
+                                    <Button
+                                      onClick={() => handleEditMatch(match)}
+                                      size="sm"
+                                      className={isCompleted ? "bg-slate-500" : "bg-[#1F7A63] hover:bg-[#16624F]"}
+                                    >
+                                      {isCompleted ? 'Input Detail Match' : 'Input Detail Match'}
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
-                {/* Area Utama VS & Skor */}
-                <div className="flex-1 flex items-center justify-center w-full gap-2 md:gap-6">
-                  {/* Tim 1 */}
-                  <div className="flex-1 flex justify-end">
-                    <span className="text-sm md:text-lg font-bold text-slate-900 text-right line-clamp-2">{team1Name}</span>
+                {/* RIGHT SIDE - MATCHUP POOL */}
+                <div className="space-y-4">
+                  <div className="bg-white rounded-xl border-2 border-slate-200 p-4">
+                    <h3 className="text-lg font-bold text-slate-900 mb-4">Available Matchups</h3>
+                    <p className="text-sm text-slate-600 mb-4">
+                      Drag matchups from here to match slots on the left
+                    </p>
+                    
+                    {/* Matchups List */}
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {potentialMatchups
+                        .filter(matchup => !matchup.isUsed)
+                        .map(matchup => {
+                          const team1 = teamMap.get(matchup.team1Id);
+                          const team2 = teamMap.get(matchup.team2Id);
+                          
+                          return (
+                            <div
+                              key={matchup.id}
+                              draggable
+                              onDragStart={() => handleDragStart(matchup)}
+                              className="p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-grab active:cursor-grabbing transition-colors"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <GripVertical className="h-4 w-4 text-slate-400" />
+                                  <div>
+                                    <div className="font-semibold text-slate-900 text-sm">
+                                      {team1?.schoolName} vs {team2?.schoolName}
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                      Grup {matchup.group}
+                                    </div>
+                                  </div>
+                                </div>
+                                <Badge variant="outline" className="text-xs bg-slate-100 text-slate-700 border-slate-300">
+                                  Grup {matchup.group}
+                                </Badge>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      
+                      {potentialMatchups.filter(m => !m.isUsed).length === 0 && (
+                        <div className="text-center py-8 text-slate-500">
+                          <p className="text-sm">All matchups have been assigned</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Kotak Skor / VS */}
-                  <div className="shrink-0 flex flex-col items-center gap-1 mx-2">
-                    {isCompleted ? (
-                      <div className="bg-[#1F7A63] text-white px-4 md:px-6 py-2 rounded-xl font-black text-lg md:text-2xl shadow-[0_4px_10px_rgba(31,122,99,0.3)] min-w-[80px] text-center tracking-widest">
-                        {match.team1Score} - {match.team2Score}
+                  {/* Quick Stats */}
+                  <div className="bg-slate-50 rounded-xl border-2 border-slate-200 p-4">
+                    <h4 className="font-bold text-slate-700 mb-3 text-sm">Quick Stats</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Total Matchups:</span>
+                        <span className="font-semibold">{potentialMatchups.length}</span>
                       </div>
-                    ) : (
-                      <div className="bg-slate-100 text-slate-400 px-4 py-2 rounded-xl font-black text-sm md:text-base border border-slate-200 shadow-inner min-w-[60px] text-center italic">
-                        VS
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Used:</span>
+                        <span className="font-semibold text-[#1F7A63]">
+                          {potentialMatchups.filter(m => m.isUsed).length}
+                        </span>
                       </div>
-                    )}
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Available:</span>
+                        <span className="font-semibold text-blue-600">
+                          {potentialMatchups.filter(m => !m.isUsed).length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Completed:</span>
+                        <span className="font-semibold text-green-600">{completedMatchesCount}</span>
+                      </div>
+                    </div>
                   </div>
-
-                  {/* Tim 2 */}
-                  <div className="flex-1 flex justify-start">
-                    <span className="text-sm md:text-lg font-bold text-slate-900 text-left line-clamp-2">{team2Name}</span>
-                  </div>
-                </div>
-
-                {/* Area Kanan (ID & Action) */}
-                <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-4 md:gap-6 shrink-0 border-t border-slate-100 pt-3 md:border-none md:pt-0">
-                  <span className="text-[10px] md:text-xs font-mono text-slate-400 hidden md:block">
-                    {match.id}
-                  </span>
-                  <Button
-                    onClick={() => handleEditMatch(match)}
-                    className={`w-full md:w-auto font-bold rounded-xl transition-all ${
-                      isCompleted 
-                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-700' 
-                        : 'bg-[#1F7A63] hover:bg-[#16624F] text-white shadow-md'
-                    }`}
-                  >
-                    <Edit2 className="h-4 w-4 mr-2" />
-                    {isCompleted ? 'Edit Hasil' : 'Input Skor'}
-                  </Button>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            )}
+          </TabsContent>
+
+          {/* KNOCKOUT STAGE TAB */}
+          <TabsContent value="knockout" className="space-y-6">
+            <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border-2 border-slate-200 border-dashed shadow-sm">
+              <div className="h-24 w-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 border border-slate-100 shadow-inner">
+                <Activity className="h-12 w-12 text-slate-400" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-900 mb-2">Knockout Stage</h3>
+              <p className="text-slate-500 text-center max-w-md mb-4">
+                Fitur knockout stage sedang dalam pengembangan dan akan segera hadir.
+              </p>
+              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                Coming Soon
+              </Badge>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* =========================================================
@@ -524,6 +788,95 @@ export default function MatchesPageContent() {
               Simpan Hasil
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* =========================================================
+          RESET CONFIRMATION DIALOG
+          ========================================================= */}
+      <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+        <DialogContent className="bg-white max-w-md rounded-2xl border-none">
+          <VisuallyHidden>
+            <DialogTitle>Reset All Match Assignments</DialogTitle>
+          </VisuallyHidden>
+          
+          {/* Header */}
+          <div className="bg-red-600 p-6 -m-6 mb-4 rounded-t-2xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 bg-red-500 rounded-lg flex items-center justify-center">
+                  <X className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white">Reset All Assignments</h3>
+                  <p className="text-xs text-red-100">
+                    This action cannot be undone
+                  </p>
+                </div>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => setShowResetDialog(false)}
+                className="text-red-100 hover:text-white hover:bg-white/10 rounded-full h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="space-y-4">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-5 h-5 bg-red-100 rounded-full flex items-center justify-center mt-0.5">
+                  <X className="h-3 w-3 text-red-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-red-800 text-sm">Warning</h4>
+                  <p className="text-red-700 text-sm mt-1">
+                    This will remove all team assignments from match slots and return all matchups to the available pool.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-sm text-slate-600">
+              <p className="mb-2">Current assignments that will be cleared:</p>
+              <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                <div className="flex justify-between items-center">
+                  <span>Assigned matches:</span>
+                  <span className="font-semibold text-slate-900">
+                    {groupMatches.filter(m => m.team1Id && m.team2Id).length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                  <span>Completed matches:</span>
+                  <span className="font-semibold text-red-600">
+                    {completedMatchesCount} (will lose results!)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowResetDialog(false)}
+              className="flex-1 border-2 border-slate-300 hover:bg-slate-50"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmResetAllAssignments}
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Reset All
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

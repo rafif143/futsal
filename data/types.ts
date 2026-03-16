@@ -31,7 +31,9 @@ export interface Match {
   team2Score?: number;
   status: 'pending' | 'completed';
   events: MatchEvent[];
-  date?: string;
+  date?: string; // YYYY-MM-DD format
+  time?: string; // HH:MM format
+  venue?: string; // Lokasi pertandingan
 }
 
 export interface MatchEvent {
