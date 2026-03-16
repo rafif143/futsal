@@ -82,10 +82,39 @@ export default function RegistrationsPage() {
       title="Registration Management"
       breadcrumb={["Admin", "Registrations"]}
     >
-      {/* Filter */}
-      <div className="mb-4 flex items-center gap-3">
-        <span className="text-sm font-medium text-gray-600">Filter by Status:</span>
-        <div className="flex gap-2">
+      <div className="flex flex-col gap-6 w-full h-full pb-10">
+        
+        {/* HERO BANNER SECTION */}
+        <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 rounded-2xl p-6 md:p-8 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden w-full shrink-0">
+          <div className="absolute right-0 top-0 w-64 h-64 bg-[#1F7A63] opacity-20 blur-[80px] rounded-full pointer-events-none"></div>
+          
+          <div className="flex items-center gap-6 z-10 w-full md:w-auto">
+            <div className="h-16 w-16 bg-[#1F7A63] rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(31,122,99,0.4)] shrink-0">
+              <ClipboardList className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight mb-1">Registration Management</h1>
+              <p className="text-gray-400 text-sm md:text-base font-medium">Kelola dan verifikasi pendaftaran tim turnamen.</p>
+            </div>
+          </div>
+
+          <div className="z-10 flex w-full md:w-auto">
+            <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-4 flex items-center gap-4 backdrop-blur-sm shadow-inner w-full md:w-auto">
+              <div className="p-2.5 bg-[#1F7A63]/20 rounded-lg">
+                <ClipboardList className="h-6 w-6 text-[#29a889]" />
+              </div>
+              <div>
+                <p className="text-[10px] md:text-xs text-gray-400 font-bold uppercase tracking-widest">Total Registrations</p>
+                <p className="text-xl md:text-2xl font-black text-white">{registrations.length} Pendaftaran</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter */}
+        <div className="flex items-center gap-3 bg-white p-4 rounded-xl border-2 border-gray-300 shadow-sm">
+          <span className="text-sm font-medium text-gray-600">Filter by Status:</span>
+          <div className="flex gap-2">
           <Button
             size="sm"
             variant={statusFilter === 'all' ? 'default' : 'outline'}
@@ -119,9 +148,10 @@ export default function RegistrationsPage() {
             Rejected ({registrations.filter(r => r.status === 'rejected').length})
           </Button>
         </div>
-      </div>
+        </div>
 
-      <div className="rounded-xl border bg-white shadow-sm">
+        {/* Table */}
+        <div className="rounded-xl border-2 border-gray-300 bg-white shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
@@ -220,14 +250,15 @@ export default function RegistrationsPage() {
             ))}
           </TableBody>
         </Table>
-      </div>
+        </div>
 
-      {/* Pagination */}
-      <Pagination
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={handlePageChange}
-      />
+        {/* Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+        />
+      </div>
 
       {/* View Detail Dialog */}
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
